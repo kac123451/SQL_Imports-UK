@@ -1,1 +1,154 @@
+CREATE TABLE IF NOT EXISTS `logical-light-389912.ImportsUK.Russia` AS
+(
+SELECT
+  date,
+  country_name,
+  country_code,
+  commodity_name,
+  volume
+FROM
+  `logical-light-389912.ImportsUK.world`
+WHERE
+  country_name = "Russia"
+);
+
+CREATE TABLE IF NOT EXISTS `logical-light-389912.ImportsUK.Ukraine` AS
+(
+SELECT
+  date,
+  country_name,
+  country_code,
+  commodity_name,
+  volume
+FROM
+  `logical-light-389912.ImportsUK.world`
+WHERE
+  country_name = "Ukraine"
+);
+
+CREATE TABLE IF NOT EXISTS `logical-light-389912.ImportsUK.Rest_World` AS
+(
+SELECT
+  date,
+  country_name,
+  country_code,
+  commodity_name,
+  volume
+FROM
+  `logical-light-389912.ImportsUK.world`
+WHERE
+  country_name != "Ukraine" OR
+  country_name != "Russia"
+);
+
+### Russia Imports
+### Lets check What is total volume of imports over years and % difference
+WITH year_volume AS (
+SELECT
+    EXTRACT(YEAR FROM date) AS year,
+    SUM(volume) volume,
+FROM
+   `logical-light-389912.ImportsUK.Russia`
+GROUP BY
+    year
+ORDER BY
+    year),
+prev_year_volume AS (   
+SELECT
+  year,
+  volume,
+  LAG(volume) OVER (ORDER BY year) as previous_year
+FROM year_volume
+GROUP BY
+    year, volume
+ORDER BY
+    year
+)
+SELECT
+  year,
+  volume,
+  previous_year,
+  ((volume-previous_year)/previous_year)*100 percentage_difference
+FROM prev_year_volume
+GROUP BY
+year, volume, previous_year
+ORDER BY
+year;
+    
+
+### Same for months
+
+WITH monthly_volume AS (
+SELECT
+    date,
+    SUM(volume) volume,
+FROM
+   `logical-light-389912.ImportsUK.Russia`
+GROUP BY
+    date
+ORDER BY
+    date
+),
+prev_month_volume AS (   
+SELECT
+  date,
+  volume,
+  LAG(volume) OVER (ORDER BY date) as previous_month
+FROM monthly_volume
+GROUP BY
+    date, volume
+ORDER BY
+    date)
+SELECT
+  date,
+  volume,
+  previous_month,
+  ((volume-previous_month)/previous_month)*100 percentage_difference
+FROM prev_month_volume
+WHERE 
+  previous_month IS NOT NULL
+GROUP BY
+date, volume, previous_month
+ORDER BY
+percentage_difference;
+
+### Highest drops are in 2022 and 2023 --- zdazylo sie cos w tych miesiacach ?
+
+
+### Lets check what commododity UK Imports the most from Russia including Totals with percentage
+WITH commodity_vol AS (
+SELECT
+    DISTINCT(commodity_name) commodity_name,
+    SUM(volume) volume,
+FROM
+   `logical-light-389912.ImportsUK.Russia`
+   WHERE
+  commodity_name != "Fuels"
+GROUP BY
+    commodity_name
+ORDER BY
+    commodity_name
+),
+prev_month_volume AS (   
+SELECT
+  commodity_name,
+  volume,
+  SUM(volume) OVER (ORDER BY COUNT(commodity_name)) as Total_vol
+FROM commodity_vol
+GROUP BY
+    commodity_name, volume
+ORDER BY
+    commodity_name)
+SELECT
+  commodity_name,
+  volume,
+  Total_vol,
+  (volume/Total_vol)*100 percentage_difference
+FROM prev_month_volume
+WHERE 
+  Total_vol IS NOT NULL
+GROUP BY
+volume, commodity_name, Total_vol
+ORDER BY
+percentage_difference DESC;
 
